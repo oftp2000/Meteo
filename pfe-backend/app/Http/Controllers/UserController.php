@@ -5,81 +5,107 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
+    // Création d'un nouvel utilisateur
     public function store(Request $request)
-{
-    // Validez les champs, en vous assurant que "permissions" est un tableau d’IDs (ex: [1,2,3])
-    $data = $request->validate([
-        'name'        => 'required|string|max:255',
-        'email'       => 'required|string|email|max:255|unique:users',
-        'password'    => 'required|string|min:6',
-        'role'        => 'required|string',
-        'permissions' => 'sometimes|array'
-    ]);
+    {
+        // Validation des données avec gestion du fichier photo
+        $data = $request->validate([
+            'name'          => 'required|string|max:255',
+            'email'         => 'required|string|email|max:255|unique:users',
+            'password'      => 'required|string|min:6',
+            'role'          => 'required|string',
+            'permissions'   => 'sometimes|array',
+            'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
 
-    // Création de l'utilisateur
-    $user = \App\Models\User::create([
-        'name'     => $data['name'],
-        'email'    => $data['email'],
-        'password' => bcrypt($data['password']),
-        'role'     => $data['role'],
-    ]);
+        // Si une photo de profil est fournie, on la stocke
+        if ($request->hasFile('profile_photo')) {
+            $data['profile_photo'] = $request->file('profile_photo')->store('profile_photos', 'public');
+        }
 
-    // Si des permissions sont envoyées, les synchroniser dans la table pivot
-    if (isset($data['permissions'])) {
-        $user->permissions()->sync($data['permissions']);
+        // Création de l'utilisateur avec le mot de passe hashé
+        $user = User::create([
+            'name'          => $data['name'],
+            'email'         => $data['email'],
+            'password'      => bcrypt($data['password']),
+            'role'          => $data['role'],
+            'profile_photo' => $data['profile_photo'] ?? null,
+        ]);
+
+        // Synchronisation des permissions si fournies
+        if (isset($data['permissions'])) {
+            $user->permissions()->sync($data['permissions']);
+        }
+
+        return response()->json([
+            'message' => 'Utilisateur créé avec succès',
+            'user'    => $user
+        ], 201);
     }
 
-    return response()->json([
-        'message' => 'Utilisateur créé avec succès',
-        'user'    => $user
-    ], 201);
-}
-
+    // Mise à jour d'un utilisateur existant
     public function update(Request $request, $id)
-{
-    $user = \App\Models\User::findOrFail($id);
+    {
+        $user = User::findOrFail($id);
 
-    $data = $request->validate([
-        'name'        => 'required|string|max:255',
-        'email'       => 'required|string|email|max:255|unique:users,email,'.$user->id,
-        'role'        => 'required|string',
-        'permissions' => 'sometimes|array'
-    ]);
+        // Validation des données, y compris pour la photo et le mot de passe optionnel
+        $data = $request->validate([
+            'name'          => 'required|string|max:255',
+            'email'         => 'required|string|email|max:255|unique:users,email,'.$user->id,
+            'role'          => 'required|string',
+            'permissions'   => 'sometimes|array',
+            'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'password'      => 'nullable|string|min:6',
+        ]);
 
-    // Mise à jour des informations de base de l'utilisateur
-    $user->update($data);
+        // Gestion de l'upload de la nouvelle photo (suppression de l'ancienne si présente)
+        if ($request->hasFile('profile_photo')) {
+            if ($user->profile_photo) {
+                Storage::disk('public')->delete($user->profile_photo);
+            }
+            $data['profile_photo'] = $request->file('profile_photo')->store('profile_photos', 'public');
+        }
 
-    // Synchronisation des permissions via la table pivot
-    if (isset($data['permissions'])) {
-        $user->permissions()->sync($data['permissions']);
-    } else {
-        // Si aucune permission n'est transmise, on vide la relation
-        $user->permissions()->sync([]);
+        // Mise à jour du mot de passe si fourni
+        if (!empty($data['password'])) {
+            $data['password'] = bcrypt($data['password']);
+        } else {
+            unset($data['password']);
+        }
+
+        $user->update($data);
+
+        if (isset($data['permissions'])) {
+            $user->permissions()->sync($data['permissions']);
+        } else {
+            $user->permissions()->sync([]);
+        }
+
+        return response()->json([
+            'message' => 'Utilisateur mis à jour avec succès',
+            'user'    => $user
+        ]);
     }
 
-    return response()->json([
-        'message' => 'Utilisateur mis à jour avec succès',
-        'user'    => $user
-    ]);
-}
+    // Suppression d'un utilisateur
+    public function destroy($id)
+    {
+        $user = User::findOrFail($id);
 
-public function destroy($id)
-{
-    // Trouver l'utilisateur ou renvoyer une erreur 404 si non trouvé
-    $user = \App\Models\User::findOrFail($id);
+        // Suppression de la photo de profil du stockage si elle existe
+        if ($user->profile_photo) {
+            Storage::disk('public')->delete($user->profile_photo);
+        }
 
-    // Supprimer l'utilisateur
-    $user->delete();
+        $user->delete();
 
-    // Retourner une réponse JSON de succès
-    return response()->json([
-        'message' => 'Utilisateur supprimé avec succès',
-    ], 200);
-}
-
-
-
+        return response()->json([
+            'message' => 'Utilisateur supprimé avec succès',
+        ], 200);
+    }
 }

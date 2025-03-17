@@ -8,7 +8,6 @@ export default function Layout() {
       {/* En-tête */}
       <header>
         <div className="flex items-center justify-between bg-[#003366] px-10 py-4 mb-0.5 shadow-2xl">
-          {/* Logo avec lien vers l'accueil */}
           <Link to="/" className="flex items-center">
             <img src={logo} alt="Logo" className="h-16 w-auto mr-3" />
             <span className="text-lg sm:text-xl text-white font-semibold leading-tight sm:leading-normal">
@@ -65,7 +64,6 @@ export default function Layout() {
               </p>
             </div>
 
-            {/* Institution */}
             <div className="w-full md:w-1/2 lg:w-1/4 px-[15px] mb-8 lg:mb-0">
               <h4 className="text-white text-lg font-medium mb-[35px] relative before:content-[''] before:absolute before:left-0 before:bottom-[-10px] before:bg-[#FFA500] before:h-[2px] before:w-[50px]">
                 Institution

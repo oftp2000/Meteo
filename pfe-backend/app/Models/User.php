@@ -26,6 +26,7 @@ protected $fillable = [
     'role' ,
     'status',
     'last_login_at',
+    'profile_photo',
 ];
 
 protected $hidden = [

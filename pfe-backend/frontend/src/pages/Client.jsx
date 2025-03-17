@@ -389,7 +389,7 @@ const SectorNavigation = () => {
 
   return (
     <>
-      {/* En-tête avec SearchBubble, navigation par secteurs, bouton déconnexion et icône de profil */}
+
       <header className="bg-[#003366] text-white py-4 font-roboto relative">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center">
@@ -414,7 +414,7 @@ const SectorNavigation = () => {
               ))}
             </div>
           </div>
-          {/* Bouton Déconnexion et icône de profil */}
+
           <div className="flex items-center space-x-4">
             <button
               onClick={handleLogout}
@@ -450,7 +450,7 @@ const SectorNavigation = () => {
           </div>
         </div>
 
-        {/* Liste des résultats de recherche stylisée */}
+
         {searchQuery && (
           <div className="absolute z-10 top-full left-4 mt-2 w-64 bg-white text-[#003366] rounded-md shadow-lg p-4 transition-opacity duration-300">
             {filteredResults.length > 0 ? (
