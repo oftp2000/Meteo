@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../axiosConfig';
 
-// Composant : SearchBubble (inchangé)
 const SearchBubble = ({ onSearchChange }) => {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -68,7 +67,6 @@ const SearchBubble = ({ onSearchChange }) => {
   );
 };
 
-// FORMULAIRE POUR "Carte Neige" (inchangé)
 const CarteNeigeForm = ({ onSubmit }) => {
   const [date, setDate] = useState("2025-02-16");
   const [mosaic, setMosaic] = useState(false);
@@ -120,7 +118,6 @@ const CarteNeigeForm = ({ onSubmit }) => {
   );
 };
 
-// FORMULAIRE POUR "Carte Ecart-RR-ABH" (inchangé)
 const CarteEcartForm = ({ onSubmit }) => {
   const [ecart, setEcart] = useState("L'année précédente");
   const [date, setDate] = useState("2025-02-16");
@@ -166,7 +163,6 @@ const CarteEcartForm = ({ onSubmit }) => {
   );
 };
 
-// FORMULAIRE POUR "Climatologie‑Réanalyses" (inchangé)
 const ClimatologieReanalysesForm = ({ onSubmit }) => {
   const [annee, setAnnee] = useState("2025");
   const [etendue, setEtendue] = useState("Mensuelle");
@@ -253,7 +249,6 @@ const ClimatologieReanalysesForm = ({ onSubmit }) => {
   );
 };
 
-// DONNÉES DES SECTEURS (inchangées)
 const sectorData = {
   CLIMAT: {
     links: [
@@ -288,7 +283,7 @@ const sectorData = {
       { label: "Satellite-Standard", href: "/fr/teledetection/satellite-standard", icon: "🛰️" },
       { label: "Satellite-Developpe", href: "/fr/teledetection/satellite-developpe", icon: "🚀" },
       { label: "Radar-Standard", href: "/fr/teledetection/radar-standard", icon: "📡" },
-      { label: "Radar-Developpe", href: "/fr/teledetection/radar-developpe", icon: "📡" },
+      { label: "Radar-Develppé", href: "/fr/teledetection/radar-developpe", icon: "📡" },
       { label: "Foudre-Standard", href: "/fr/teledetection/foudre-standard", icon: "⚡" },
     ],
   },
@@ -317,23 +312,22 @@ const sectorData = {
   },
 };
 
-// Composant principal : SectorNavigation
 const SectorNavigation = () => {
   const [activeSector, setActiveSector] = useState("CLIMAT");
   const [selectedLink, setSelectedLink] = useState(null);
   const [formResult, setFormResult] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const navigate = useNavigate();
 
-  // Mise à jour de la recherche
   const handleSearchChange = (query) => setSearchQuery(query);
 
-  // Sélection d'un secteur ou lien via la recherche
   const handleSearchSelect = (sector, link) => {
     setActiveSector(sector);
     setSelectedLink(link);
     setSearchQuery("");
     setFormResult(null);
+    setIsSidebarOpen(true);
   };
 
   const filteredResults = Object.entries(sectorData).reduce(
@@ -376,7 +370,6 @@ const SectorNavigation = () => {
     );
   };
 
-  // Fonction de déconnexion identique à celle de l'admin
   const handleLogout = async () => {
     try {
       await axios.post('/logout');
@@ -389,11 +382,34 @@ const SectorNavigation = () => {
 
   return (
     <>
-
       <header className="bg-[#003366] text-white py-4 font-roboto relative">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="mr-4 p-2 hover:bg-[#ffffff20] rounded-lg"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" 
+                   className="h-6 w-6" 
+                   fill="none" 
+                   viewBox="0 0 24 24" 
+                   stroke="currentColor">
+                {isSidebarOpen ? (
+                  <path strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M15 19l-7-7 7-7" />
+                ) : (
+                  <path strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M9 5l7 7-7 7" />
+                )}
+              </svg>
+            </button>
+
             <SearchBubble onSearchChange={handleSearchChange} />
+            
             <div className="flex space-x-4 ml-8">
               {Object.keys(sectorData).map((sector) => (
                 <button
@@ -402,6 +418,7 @@ const SectorNavigation = () => {
                     setActiveSector(sector);
                     setSelectedLink(null);
                     setFormResult(null);
+                    setIsSidebarOpen(true);
                   }}
                   className={`py-2 px-4 rounded-md transition-colors duration-300 ${
                     activeSector === sector
@@ -450,7 +467,6 @@ const SectorNavigation = () => {
           </div>
         </div>
 
-
         {searchQuery && (
           <div className="absolute z-10 top-full left-4 mt-2 w-64 bg-white text-[#003366] rounded-md shadow-lg p-4 transition-opacity duration-300">
             {filteredResults.length > 0 ? (
@@ -482,67 +498,76 @@ const SectorNavigation = () => {
         )}
       </header>
 
-      {/* Zone principale : affichage des cartes, formulaires et résultats */}
-      <section className="py-16 bg-[#F5F5F5] transition-colors duration-500">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row gap-8">
-            {/* Grille des cartes */}
-            <div className="w-full md:w-1/3">
-              <div className="grid grid-cols-2 gap-2">
-                {sectorData[activeSector].links.map((link) => (
-                  <div
-                    key={link.href}
-                    onClick={() => {
-                      setSelectedLink(link);
-                      setFormResult(null);
-                    }}
-                    className={`cursor-pointer bg-white p-2 rounded-md shadow hover:shadow-lg transition-shadow border ${
-                      selectedLink && selectedLink.href === link.href
-                        ? "border-[#FFA500]"
-                        : "border-transparent"
+      <div className="flex h-[calc(100vh-120px)]">
+        <div className={`bg-white shadow-lg transition-all duration-300 ease-in-out 
+          ${isSidebarOpen ? "w-64" : "w-16"} overflow-hidden`}>
+          
+          <div className="p-4">
+            <h3 className="text-[#003366] font-semibold mb-4 border-b pb-2">
+              {isSidebarOpen && activeSector}
+            </h3>
+            <ul className="space-y-2">
+              {sectorData[activeSector].links.map((link) => (
+                <li
+                  key={link.href}
+                  onClick={() => {
+                    setSelectedLink(link);
+                    setFormResult(null);
+                  }}
+                  className={`flex items-center cursor-pointer p-2 rounded-md transition-colors
+                    ${
+                      selectedLink?.href === link.href
+                        ? "bg-[#FFA500] text-white"
+                        : "hover:bg-gray-100"
                     }`}
-                  >
-                    <div className="mb-1 text-xl text-[#4A90E2] text-center">
-                      {link.icon}
-                    </div>
-                    <h4 className="text-xs font-semibold text-[#003366] text-center">
+                >
+                  <span className="mr-2 text-xl">{link.icon}</span>
+                  {isSidebarOpen && (
+                    <span className="text-sm text-[#003366]">
                       {link.label}
-                    </h4>
-                  </div>
-                ))}
-              </div>
-            </div>
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
 
-            {/* Affichage du formulaire et du résultat */}
-            <div className="w-full md:w-2/3 space-y-4">
+        <div className={`flex-1 bg-[#F5F5F5] transition-all duration-300 ${
+          isSidebarOpen ? "ml-64" : "ml-16"
+        }`}>
+          <div className="h-full flex flex-col p-4">
+            <div className="flex-1 space-y-4">
               {selectedLink ? (
-                <div className="bg-white p-4 rounded-md shadow transition-transform duration-300 transform hover:scale-105">
+                <div className="bg-white rounded-md shadow">
                   {renderForm()}
                 </div>
               ) : (
-                <div className="bg-white p-4 rounded-md shadow text-[#003366]">
-                  Veuillez sélectionner une carte.
+                <div className="bg-white rounded-md shadow p-4 text-[#003366]">
+                  Sélectionnez une carte dans la sidebar
                 </div>
               )}
 
-              <div className="bg-white p-4 rounded-md shadow">
-                <h4 className="text-[#003366] font-semibold mb-2 text-sm">
-                  Résultat :
-                </h4>
-                {formResult ? (
-                  <pre className="text-xs text-[#003366]">
-                    {JSON.stringify(formResult, null, 2)}
-                  </pre>
-                ) : (
-                  <p className="text-xs text-[#003366]">
-                    Aucun résultat pour le moment.
-                  </p>
-                )}
+              <div className="bg-white rounded-md shadow">
+                <div className="p-4">
+                  <h4 className="text-[#003366] font-semibold mb-2 text-sm">
+                    Résultat :
+                  </h4>
+                  {formResult ? (
+                    <pre className="text-xs text-[#003366]">
+                      {JSON.stringify(formResult, null, 2)}
+                    </pre>
+                  ) : (
+                    <p className="text-xs text-[#003366]">
+                      Aucun résultat à afficher
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </section>
+      </div>
     </>
   );
 };

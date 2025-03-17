@@ -159,7 +159,7 @@ const initialPermissions = {
 };
 
 /* ----------------------------------------------
-   2) Fonction utilitaire : permissions -> IDs
+   2) Fonction utilitaire :
 ---------------------------------------------- */
 const transformPermissions = (permissions, mapping) => {
   let permissionIds = [];
@@ -262,7 +262,7 @@ const Admin = () => {
   }, []);
 
   /* ----------------------------------------------
-     5) Gestion fichiers (photos de profil)
+     5) Gestion fichiers 
   ---------------------------------------------- */
   const handleFileChange = (e, isEditing = false) => {
     const file = e.target.files[0];
@@ -475,7 +475,7 @@ const Admin = () => {
       const response = await axios.delete(`/password-requests/${id}`);
       console.log("Suppression réussie:", response.data);
       
-      // Mettre à jour l'état local après suppression
+
       setPasswordRequests(prev => prev.filter(req => req.id !== id));
   
       toast.success("Demande supprimée !");
