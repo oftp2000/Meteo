@@ -114,4 +114,6 @@ class AdminController extends Controller
         $user->update(['status' => $request->status]);
         return response()->json($user);
     }
+
+    
 }

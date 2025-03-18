@@ -35,7 +35,7 @@ const Login = () => {
       const response = await axios.post('/forgot-password', { email: resetEmail });
       console.log("Demande de réinitialisation envoyée:", response.data);
       toast.success("Votre demande a été envoyée avec succès !");
-      setResetEmail(''); // Réinitialise le champ
+      setResetEmail('');
     } catch (err) {
       console.error('Erreur lors de la demande de réinitialisation:', err);
       setError('Erreur lors de la demande de réinitialisation');
@@ -43,7 +43,7 @@ const Login = () => {
     }
   };
 
-  // Variantes d'animation pour simuler une "page tournante"
+
   const containerVariants = {
     hidden: { opacity: 0, rotateY: 90 },
     visible: { opacity: 1, rotateY: 0 },

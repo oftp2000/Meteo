@@ -1,29 +1,29 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../axiosConfig';
+import PropTypes from "prop-types";
 
+// Composant SearchBubble pour la barre de recherche
 const SearchBubble = ({ onSearchChange }) => {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const handleChange = (e) => {
     setSearchQuery(e.target.value);
-    onSearchChange && onSearchChange(e.target.value);
+    onSearchChange(e.target.value);
   };
 
   const handleClose = () => {
     setOpen(false);
     setSearchQuery("");
-    onSearchChange && onSearchChange("");
+    onSearchChange("");
   };
 
   return (
     <div className="relative flex items-center">
-      <div
-        className={`flex items-center justify-center rounded-full shadow-lg transition-all duration-300 ease-in-out
-          ${open ? "w-64 p-2" : "w-12 h-12"}
-          bg-gradient-to-r from-[#4A90E2] to-[#003366]`}
-      >
+      <div className={`flex items-center justify-center rounded-full shadow-lg transition-all duration-300 ease-in-out 
+        ${open ? "w-64 p-2" : "w-12 h-12"} 
+        bg-gradient-to-r from-[#4A90E2] to-[#003366]`}>
         {open ? (
           <input
             type="text"
@@ -67,6 +67,7 @@ const SearchBubble = ({ onSearchChange }) => {
   );
 };
 
+// Composant CarteNeigeForm
 const CarteNeigeForm = ({ onSubmit }) => {
   const [date, setDate] = useState("2025-02-16");
   const [mosaic, setMosaic] = useState(false);
@@ -118,6 +119,7 @@ const CarteNeigeForm = ({ onSubmit }) => {
   );
 };
 
+// Composant CarteEcartForm
 const CarteEcartForm = ({ onSubmit }) => {
   const [ecart, setEcart] = useState("L'année précédente");
   const [date, setDate] = useState("2025-02-16");
@@ -163,6 +165,7 @@ const CarteEcartForm = ({ onSubmit }) => {
   );
 };
 
+// Composant ClimatologieReanalysesForm
 const ClimatologieReanalysesForm = ({ onSubmit }) => {
   const [annee, setAnnee] = useState("2025");
   const [etendue, setEtendue] = useState("Mensuelle");
@@ -249,76 +252,52 @@ const ClimatologieReanalysesForm = ({ onSubmit }) => {
   );
 };
 
-const sectorData = {
-  CLIMAT: {
-    links: [
-      { label: "Carte Neige", href: "/fr/climat/carte-neige", icon: "❄️" },
-      { label: "Carte Ecart-RR-ABH", href: "/fr/climat/carte-ecart-rr-abh", icon: "📊" },
-      { label: "Climatologie‑Réanalyses", href: "/fr/climat/climatologie-reanalyses", icon: "📈" },
-      { label: "Suivi-Sécheresse", href: "/fr/climat/suivi-secheresse", icon: "💧" },
-      { label: "Indicateurs-DBClimat", href: "/fr/climat/indicateurs-dbclimat", icon: "⚙️" },
-      { label: "Records", href: "/fr/climat/records", icon: "🏆" },
-      { label: "Qualité de l'air", href: "/fr/climat/qualite-de-lair", icon: "🌬️" },
-    ],
-  },
-  OBSERVATION: {
-    links: [
-      { label: "Obsmet-Maroc", href: "/fr/observation/obsmet-maroc", icon: "🔭" },
-      { label: "Planche-Quotidienne", href: "/fr/observation/planche-quotidienne", icon: "🗓️" },
-      { label: "Planche-Provinciale", href: "/fr/observation/planche-provinciale", icon: "📅" },
-      { label: "Planche-Horaire", href: "/fr/observation/planche-horaire", icon: "⏰" },
-      { label: "Planche-Décadaire", href: "/fr/observation/planche-decaire", icon: "📆" },
-      { label: "Planche-Précipitation", href: "/fr/observation/planche-precipitation", icon: "🌧️" },
-      { label: "Planche-Neige", href: "/fr/observation/planche-neige", icon: "❄️" },
-      { label: "Postes - Auxiliaires", href: "/fr/observation/postes-auxiliaires", icon: "⚡" },
-      { label: "Pluvio-Urbain", href: "/fr/observation/pluvio-urbain", icon: "🌂" },
-      { label: "Obsmap-Maroc", href: "/fr/observation/obsmap-maroc", icon: "🗺️" },
-      { label: "Map-Observation", href: "/fr/observation/map-observation", icon: "🗺️" },
-      { label: "Map-Précipitation", href: "/fr/observation/map-precipitation", icon: "🗺️" },
-      { label: "Map-Neige", href: "/fr/observation/map-neige", icon: "🗺️" },
-    ],
-  },
-  TELEDETECTION: {
-    links: [
-      { label: "Satellite-Standard", href: "/fr/teledetection/satellite-standard", icon: "🛰️" },
-      { label: "Satellite-Developpe", href: "/fr/teledetection/satellite-developpe", icon: "🚀" },
-      { label: "Radar-Standard", href: "/fr/teledetection/radar-standard", icon: "📡" },
-      { label: "Radar-Develppé", href: "/fr/teledetection/radar-developpe", icon: "📡" },
-      { label: "Foudre-Standard", href: "/fr/teledetection/foudre-standard", icon: "⚡" },
-    ],
-  },
-  MODELISATION: {
-    links: [
-      { label: "Météographes", href: "/fr/modelisation/meteographes", icon: "🌤️" },
-      { label: "Modele-NUMERIQUE", href: "/fr/modelisation/modele-numerique", icon: "💻" },
-      { label: "Modele-MARINE", href: "/fr/modelisation/modele-marine", icon: "🚢" },
-    ],
-  },
-  PREVISION: {
-    links: [
-      { label: "Prévision-Maroc", href: "/fr/prevision/prevision-maroc", icon: "🌦️" },
-      { label: "Prévision-Monde", href: "/fr/prevision/prevision-monde", icon: "🌍" },
-      { label: "Prévision-Ma-Plage", href: "/fr/prevision/prevision-ma-plage", icon: "🏖️" },
-      { label: "Légende icones", href: "/fr/prevision/legende-icones", icon: "📜" },
-    ],
-  },
-  CARTOGRAPHIE: {
-    links: [
-      { label: "Map-Vigilances", href: "/fr/cartographie/map-vigilances", icon: "🗺️" },
-      { label: "Map-Modeles", href: "/fr/cartographie/map-modeles", icon: "🗺️" },
-      { label: "Map-Observation", href: "/fr/cartographie/map-observation", icon: "🗺️" },
-      { label: "Ma-Plage", href: "/fr/cartographie/ma-plage", icon: "🏝️" },
-    ],
-  },
-};
-
+// Composant principal SectorNavigation
 const SectorNavigation = () => {
-  const [activeSector, setActiveSector] = useState("CLIMAT");
+  const [activeSector, setActiveSector] = useState("");
   const [selectedLink, setSelectedLink] = useState(null);
   const [formResult, setFormResult] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [dynamicSectorData, setDynamicSectorData] = useState({});
   const navigate = useNavigate();
+
+  // Récupération des permissions de l'utilisateur
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      try {
+        const response = await axios.get('/profile');
+        const permissions = response.data.permissions;
+        
+        const formattedData = permissions.reduce((acc, permission) => {
+          const category = permission.category.toUpperCase();
+          if (!acc[category]) {
+            acc[category] = { links: [] };
+          }
+          
+          const href = `/${permission.category.toLowerCase()}/${permission.label
+            .toLowerCase()
+            .replace(/ /g, '-')
+            .replace(/[^a-z0-9-]/g, '')}`;
+
+          acc[category].links.push({
+            label: permission.label,
+            href,
+            icon: permission.icon
+          });
+          
+          return acc;
+        }, {});
+
+        setDynamicSectorData(formattedData);
+        setActiveSector(Object.keys(formattedData)[0] || '');
+      } catch (error) {
+        console.error('Erreur de chargement des permissions:', error);
+      }
+    };
+
+    fetchPermissions();
+  }, []);
 
   const handleSearchChange = (query) => setSearchQuery(query);
 
@@ -330,7 +309,7 @@ const SectorNavigation = () => {
     setIsSidebarOpen(true);
   };
 
-  const filteredResults = Object.entries(sectorData).reduce(
+  const filteredResults = Object.entries(dynamicSectorData).reduce(
     (results, [sector, data]) => {
       const lowerQuery = searchQuery.toLowerCase();
       const sectorMatches = sector.toLowerCase().includes(lowerQuery);
@@ -351,23 +330,20 @@ const SectorNavigation = () => {
 
   const renderForm = () => {
     if (!selectedLink) return null;
-    if (selectedLink.label === "Carte Neige") {
-      return <CarteNeigeForm onSubmit={handleFormSubmit} />;
-    }
-    if (selectedLink.label === "Carte Ecart-RR-ABH") {
-      return <CarteEcartForm onSubmit={handleFormSubmit} />;
-    }
-    if (
-      selectedLink.label === "Climatologie‑Réanalyses" ||
-      selectedLink.label === "Climatologie-Reanalyses"
-    ) {
-      return <ClimatologieReanalysesForm onSubmit={handleFormSubmit} />;
-    }
-    return (
+    
+    const formComponents = {
+      'Carte Neige': CarteNeigeForm,
+      'Carte Ecart-RR-ABH': CarteEcartForm,
+      'Climatologie‑Réanalyses': ClimatologieReanalysesForm,
+    };
+
+    const FormComponent = formComponents[selectedLink.label];
+    
+    return FormComponent ? 
+      <FormComponent onSubmit={handleFormSubmit} /> : 
       <div className="p-4 bg-white rounded-md shadow text-[#003366]">
         Aucun formulaire disponible pour cette carte.
-      </div>
-    );
+      </div>;
   };
 
   const handleLogout = async () => {
@@ -411,7 +387,7 @@ const SectorNavigation = () => {
             <SearchBubble onSearchChange={handleSearchChange} />
             
             <div className="flex space-x-4 ml-8">
-              {Object.keys(sectorData).map((sector) => (
+              {Object.keys(dynamicSectorData).map((sector) => (
                 <button
                   key={sector}
                   onClick={() => {
@@ -507,7 +483,7 @@ const SectorNavigation = () => {
               {isSidebarOpen && activeSector}
             </h3>
             <ul className="space-y-2">
-              {sectorData[activeSector].links.map((link) => (
+              {dynamicSectorData[activeSector]?.links.map((link) => (
                 <li
                   key={link.href}
                   onClick={() => {
@@ -571,5 +547,24 @@ const SectorNavigation = () => {
     </>
   );
 };
+
+
+
+SearchBubble.propTypes = {
+  onSearchChange: PropTypes.func.isRequired,
+};
+
+CarteNeigeForm.propTypes = {
+  onSubmit: PropTypes.func.isRequired,
+};
+
+CarteEcartForm.propTypes = {
+  onSubmit: PropTypes.func.isRequired,
+};
+
+ClimatologieReanalysesForm.propTypes = {
+  onSubmit: PropTypes.func.isRequired,
+};
+
 
 export default SectorNavigation;

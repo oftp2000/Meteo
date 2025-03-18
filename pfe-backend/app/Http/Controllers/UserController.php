@@ -7,9 +7,37 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
-
+use Illuminate\Support\Facades\Auth;
 class UserController extends Controller
 {
+
+
+    public function getProfile()
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return response()->json(['message' => 'Utilisateur non authentifié'], 401);
+        }
+
+        // Chargez les permissions de l'utilisateur
+        $user->load('permissions');
+
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role,
+            'profile_photo' => $user->profile_photo ? asset('storage/' . $user->profile_photo) : null,
+            'permissions' => $user->permissions->map(function ($permission) {
+                return [
+                    'category' => $permission->category,
+                    'label' => $permission->label,
+                    'icon' => $permission->icon
+                ];
+            })
+        ]);
+    }
     // Création d'un nouvel utilisateur
     public function store(Request $request)
     {
@@ -108,4 +136,9 @@ class UserController extends Controller
             'message' => 'Utilisateur supprimé avec succès',
         ], 200);
     }
+    
+    
+
+
+
 }

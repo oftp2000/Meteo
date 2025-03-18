@@ -16,6 +16,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users', [AdminController::class, 'createUser']);
     Route::put('/users/{id}', [AdminController::class, 'updateUserStatus']);
     Route::get('/permissions', [PermissionController::class, 'index']);
+
+    Route::get('/profile', [UserController::class, 'getProfile']);
 });
 
 
