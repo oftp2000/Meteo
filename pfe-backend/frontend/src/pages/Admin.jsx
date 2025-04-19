@@ -4,6 +4,20 @@ import { useNavigate } from 'react-router-dom';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Page, Text, View, Document, StyleSheet,
+  PDFDownloadLink 
+} from '@react-pdf/renderer';
+import { 
+  PieChart, Pie, Cell, BarChart, Bar, 
+  LineChart, Line, RadarChart, Radar, 
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  Legend, PolarGrid, PolarAngleAxis, 
+  ResponsiveContainer 
+} from 'recharts';
+import { saveAs } from 'file-saver';
+import PropTypes from 'prop-types';
+
 
 /* ----------------------------------------------
    1) Configuration des Permissions
@@ -159,7 +173,7 @@ const initialPermissions = {
 };
 
 /* ----------------------------------------------
-   2) Fonction utilitaire :
+   2) Fonction utilitaire
 ---------------------------------------------- */
 const transformPermissions = (permissions, mapping) => {
   let permissionIds = [];
@@ -173,10 +187,397 @@ const transformPermissions = (permissions, mapping) => {
   return permissionIds;
 };
 
+/* ----------------------------------------------
+   3) Composant DashboardPDF
+---------------------------------------------- */
+const DashboardPDF = ({ data }) => (
+  <Document>
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.header}>
+        <Text style={pdfStyles.title}>Rapport du Dashboard Administrateur</Text>
+        <Text style={pdfStyles.dateRange}>
+          Généré le {new Date().toLocaleDateString()}
+        </Text>
+      </View>
+
+      <View style={pdfStyles.kpiContainer}>
+        <View style={pdfStyles.kpi}>
+          <Text style={pdfStyles.kpiTitle}>Utilisateurs Actifs</Text>
+          <Text style={pdfStyles.kpiValue}>{data.kpis.activeUsers || 0}</Text>
+        </View>
+        <View style={pdfStyles.kpi}>
+          <Text style={pdfStyles.kpiTitle}>Nouveaux Utilisateurs</Text>
+          <Text style={pdfStyles.kpiValue}>{data.kpis.newUsers || 0}</Text>
+        </View>
+        <View style={pdfStyles.kpi}>
+          <Text style={pdfStyles.kpiTitle}>Demandes MDP</Text>
+          <Text style={pdfStyles.kpiValue}>{data.kpis.passwordRequests || 0}</Text>
+        </View>
+        <View style={pdfStyles.kpi}>
+          <Text style={pdfStyles.kpiTitle}>Taux d'Activation</Text>
+          <Text style={pdfStyles.kpiValue}>{data.kpis.activationRate || '0%'}</Text>
+        </View>
+      </View>
+
+      <View style={pdfStyles.chartContainer}>
+        <Text style={pdfStyles.chartTitle}>Dernières activités</Text>
+        {data.users.slice(0, 5).map((user, index) => (
+          <Text key={index}>
+            {user.name} - {user.last_login_at ? new Date(user.last_login_at).toLocaleString() : 'Jamais connecté'}
+          </Text>
+        ))}
+      </View>
+
+      <View style={pdfStyles.footer}>
+        <Text>Généré automatiquement par le système</Text>
+      </View>
+    </Page>
+  </Document>
+);
+DashboardPDF.propTypes = {
+  data: PropTypes.shape({
+    kpis: PropTypes.shape({
+      activeUsers: PropTypes.number,
+      newUsers: PropTypes.number,
+      passwordRequests: PropTypes.number,
+      activationRate: PropTypes.oneOfType([
+        PropTypes.number,
+        PropTypes.string
+      ])
+    }),
+    users: PropTypes.arrayOf(PropTypes.shape({
+      name: PropTypes.string,
+      last_login_at: PropTypes.string
+    })),
+    passwordRequests: PropTypes.array
+  }).isRequired
+};
+
+const pdfStyles = StyleSheet.create({
+  page: {
+    padding: 30,
+  },
+  header: {
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  title: {
+    fontSize: 24,
+    marginBottom: 10,
+  },
+  dateRange: {
+    fontSize: 12,
+    color: '#666',
+  },
+  kpiContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  kpi: {
+    width: '24%',
+    padding: 10,
+    border: '1px solid #eee',
+    borderRadius: 4,
+  },
+  kpiTitle: {
+    fontSize: 12,
+    marginBottom: 5,
+    color: '#666',
+  },
+  kpiValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  chartContainer: {
+    marginBottom: 20,
+  },
+  chartTitle: {
+    fontSize: 16,
+    marginBottom: 10,
+    borderBottom: '1px solid #eee',
+    paddingBottom: 5,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontSize: 10,
+    color: '#666',
+  },
+});
+
+/* ----------------------------------------------
+   4) Composant DashboardStats
+---------------------------------------------- */
+const DashboardStats = ({ users, passwordRequests }) => {
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+  
+  const [dateRange, setDateRange] = useState({
+    start: new Date(new Date().setMonth(new Date().getMonth() - 1)),
+    end: new Date()
+  });
+  
+  const [stats, setStats] = useState({
+    kpis: {},
+    activityData: [],
+    permissionStats: [],
+    roleData: [],
+    loading: true
+  });
+
+  const fetchDashboardData = async () => {
+    try {
+      setStats(prev => ({ ...prev, loading: true }));
+      
+      const params = {
+        start_date: dateRange.start.toISOString().split('T')[0],
+        end_date: dateRange.end.toISOString().split('T')[0]
+      };
+
+      const [statsRes, activityRes, permissionsRes] = await Promise.all([
+        axios.get('/admin/stats', { params }),
+        axios.get('/admin/activity-data', { params }),
+        axios.get('/admin/permission-stats', { params })
+      ]);
+
+      setStats({
+        kpis: statsRes.data.kpis || {},
+        activityData: activityRes.data || [],
+        permissionStats: permissionsRes.data || [],
+        roleData: [
+          { name: 'Admins', value: statsRes.data.adminCount || 0 },
+          { name: 'Utilisateurs', value: statsRes.data.userCount || 0 }
+        ],
+        loading: false
+      });
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setStats(prev => ({ ...prev, loading: false }));
+    }
+  };
+  DashboardStats.propTypes = {
+    users: PropTypes.array.isRequired,
+    passwordRequests: PropTypes.array.isRequired
+  };
+  
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [dateRange]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchDashboardData();
+    }, 30000); // chaque 30 secondes
+  
+    return () => clearInterval(interval); 
+  }, []);
+  
+
+  const handleExportCSV = () => {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Type,Date,Valeur\n";
+    
+    stats.activityData.forEach(item => {
+      csvContent += `Activité,${item.date},${item.count}\n`;
+    });
+    
+    passwordRequests.forEach(item => {
+      csvContent += `Demande MDP,${new Date(item.created_at).toLocaleDateString()},1\n`;
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    saveAs(blob, `dashboard-${new Date().toISOString().split('T')[0]}.csv`);
+  };
+  {stats.loading && (
+    <div className="flex justify-center items-center h-40">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-indigo-500 border-solid"></div>
+    </div>
+  )}  
+  return (
+    
+    <div className="space-y-8">
+      {stats.loading && (
+  <div className="flex justify-center items-center h-40">
+    <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-indigo-500 border-solid"></div>
+  </div>
+)}
+
+      <div className="bg-white p-4 rounded-lg shadow flex flex-wrap justify-between items-center gap-4">
+        <div className="flex items-center gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Date de début</label>
+            <input 
+              type="date" 
+              value={dateRange.start.toISOString().split('T')[0]} 
+              onChange={e => setDateRange({...dateRange, start: new Date(e.target.value)})}
+              className="p-2 border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Date de fin</label>
+            <input 
+              type="date" 
+              value={dateRange.end.toISOString().split('T')[0]} 
+              onChange={e => setDateRange({...dateRange, end: new Date(e.target.value)})}
+              className="p-2 border rounded"
+            />
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-green-600 text-white rounded-full flex items-center gap-2"
+          >
+            <span>Export CSV</span>
+            <span>📊</span>
+          </button>
+          
+          <PDFDownloadLink 
+            document={<DashboardPDF data={{ ...stats, users, passwordRequests }} />} 
+            fileName="dashboard.pdf"
+            className="px-4 py-2 bg-red-600 text-white rounded-full flex items-center gap-2"
+          >
+            {({ loading }) => loading ? 'Génération...' : 'Export PDF 📄'}
+          </PDFDownloadLink>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[
+          { title: "Utilisateurs Actifs", value: stats.kpis.activeUsers, change: stats.kpis.activeUsersChange, icon: "👥" },
+          { title: "Nouveaux Utilisateurs", value: stats.kpis.newUsers, change: stats.kpis.newUsersChange, icon: "🆕" },
+          { title: "Demandes MDP", value: stats.kpis.passwordRequests, change: stats.kpis.passwordRequestsChange, icon: "🔑" },
+          { title: "Taux d'Activation", value: stats.kpis.activationRate, change: stats.kpis.activationRateChange, icon: "📈" }
+        ].map((kpi, index) => (
+          <motion.div
+            key={index}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            className="bg-white p-6 rounded-xl shadow-lg border-t-4 border-indigo-500"
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-sm text-gray-500">{kpi.title}</p>
+                <p className="text-3xl font-bold mt-2">{kpi.value || 0}</p>
+                <p className={`text-sm mt-1 ${kpi.change?.startsWith('+') ? 'text-green-500' : 'text-red-500'}`}>
+                  {kpi.change || ''}
+                </p>
+              </div>
+              <span className="text-3xl">{kpi.icon}</span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="font-semibold mb-4">Répartition des rôles</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={stats.roleData}
+                cx="50%"
+                cy="50%"
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+                animationBegin={0}
+                animationDuration={1000}
+              >
+                {stats.roleData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => [`${value} utilisateurs`, 'Nombre']} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="font-semibold mb-4">Activité des utilisateurs</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={stats.activityData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip formatter={(value) => [`${value} connexions`, 'Nombre']} />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="count" 
+                stroke="#8884d8" 
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+                animationBegin={200}
+                animationDuration={1000}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="font-semibold mb-4">Demandes de réinitialisation</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={passwordRequests}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="created_at" 
+                tickFormatter={(date) => new Date(date).toLocaleDateString()}
+              />
+              <YAxis />
+              <Tooltip 
+                labelFormatter={(date) => `Date: ${new Date(date).toLocaleDateString()}`}
+                formatter={(value) => [`${value} demandes`, 'Nombre']}
+              />
+              <Legend />
+              <Bar 
+                dataKey="count" 
+                fill="#8884d8" 
+                animationBegin={400}
+                animationDuration={1000}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white p-4 rounded-lg shadow">
+          <h3 className="font-semibold mb-4">Utilisation des permissions</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <RadarChart data={stats.permissionStats}>
+              <PolarGrid />
+              <PolarAngleAxis dataKey="category" />
+              <Tooltip formatter={(value) => [`${value} utilisateurs`, 'Nombre']} />
+              <Radar 
+                name="Permissions" 
+                dataKey="count" 
+                stroke="#8884d8" 
+                fill="#8884d8" 
+                fillOpacity={0.6} 
+                animationBegin={600}
+                animationDuration={1000}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ----------------------------------------------
+   5) Composant Admin principal
+---------------------------------------------- */
 const Admin = () => {
-  /* ----------------------------------------------
-     3) States principaux
-  ---------------------------------------------- */
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState({
     profile_photo: '/default-avatar.png',
@@ -190,11 +591,6 @@ const Admin = () => {
     profile_photo: null,
     permissions: initialPermissions,
   });
-  const [stats, setStats] = useState({
-    totalUsers: 0,
-    activeUsers: 0,
-    lastConnectedUsers: [],
-  });
   const [passwordRequests, setPasswordRequests] = useState([]);
   const [activeSection, setActiveSection] = useState('dashboard');
   const [editingUser, setEditingUser] = useState(null);
@@ -202,9 +598,6 @@ const Admin = () => {
 
   const navigate = useNavigate();
 
-  /* ----------------------------------------------
-     4) Récupération des utilisateurs & profil
-  ---------------------------------------------- */
   const fetchUsers = async () => {
     try {
       const response = await axios.get('/users');
@@ -214,14 +607,6 @@ const Admin = () => {
         permissions: user.permissions ? JSON.parse(user.permissions) : []
       }));
       setUsers(usersWithPermissions);
-      const sortedUsers = [...usersData].sort(
-        (a, b) => new Date(b.last_login_at) - new Date(a.last_login_at)
-      );
-      setStats(prev => ({
-        ...prev,
-        totalUsers: usersData.length,
-        lastConnectedUsers: sortedUsers.slice(0, 5)
-      }));
     } catch (error) {
       console.error('Erreur lors de la récupération des utilisateurs:', error);
     }
@@ -261,9 +646,6 @@ const Admin = () => {
     fetchData();
   }, []);
 
-  /* ----------------------------------------------
-     5) Gestion fichiers 
-  ---------------------------------------------- */
   const handleFileChange = (e, isEditing = false) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -275,9 +657,6 @@ const Admin = () => {
     }
   };
 
-  /* ----------------------------------------------
-     6) Gestion du profil administrateur
-  ---------------------------------------------- */
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     const formData = new FormData();
@@ -309,9 +688,6 @@ const Admin = () => {
     }
   };
 
-  /* ----------------------------------------------
-     7) Création d'un nouvel utilisateur
-  ---------------------------------------------- */
   const handleCreateUser = async (e) => {
     e.preventDefault();
     const formData = new FormData();
@@ -344,9 +720,6 @@ const Admin = () => {
     }
   };
 
-  /* ----------------------------------------------
-     8) Déconnexion
-  ---------------------------------------------- */
   const handleLogout = async () => {
     try {
       await axios.post('/logout');
@@ -357,9 +730,6 @@ const Admin = () => {
     }
   };
 
-  /* ----------------------------------------------
-     9) Suppression d'utilisateur
-  ---------------------------------------------- */
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Confirmer la suppression ?')) {
       try {
@@ -372,20 +742,21 @@ const Admin = () => {
     }
   };
 
-  /* ----------------------------------------------
-     10) Préparation de l'édition d'utilisateur
-  ---------------------------------------------- */
   const mapPermissionsToStructure = (permissionIds) => {
     const permissions = JSON.parse(JSON.stringify(initialPermissions));
-    permissionIds.forEach(id => {
-      Object.entries(permissionMapping).forEach(([category, perms]) => {
-        Object.entries(perms).forEach(([label, permId]) => {
-          if (permId === id) {
-            permissions[category][label] = true;
-          }
-        });
+    
+    if (!permissionIds || !Array.isArray(permissionIds)) {
+      return permissions;
+    }
+
+    Object.entries(permissionMapping).forEach(([category, perms]) => {
+      Object.entries(perms).forEach(([label, permId]) => {
+        if (permissionIds.includes(permId)) {
+          permissions[category][label] = true;
+        }
       });
     });
+
     return permissions;
   };
 
@@ -398,9 +769,6 @@ const Admin = () => {
     });
   };
 
-  /* ----------------------------------------------
-     11) Sauvegarde de l'édition
-  ---------------------------------------------- */
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     const formData = new FormData();
@@ -408,14 +776,18 @@ const Admin = () => {
     formData.append('name', editingUser.name);
     formData.append('email', editingUser.email);
     formData.append('role', editingUser.role);
+    
     if (editingUser.profile_photo_file) {
       formData.append('profile_photo', editingUser.profile_photo_file);
     }
+    
     if (editingUser.password) {
       formData.append('password', editingUser.password);
     }
+    
     const permissionIds = transformPermissions(editingUser.permissions, permissionMapping);
     permissionIds.forEach(id => formData.append('permissions[]', id));
+    
     try {
       await axios.post(`/users/${editingUser.id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -433,16 +805,10 @@ const Admin = () => {
     setEditingUser(null);
   };
 
-  /* ----------------------------------------------
-     12) Recherche d’utilisateurs
-  ---------------------------------------------- */
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  /* ----------------------------------------------
-     13) Gestion des demandes de MDP oubliés
-  ---------------------------------------------- */
   const handleRequestPasswordChange = (id, newValue) => {
     setPasswordRequests(prev =>
       prev.map(req => req.id === id ? { ...req, newPassword: newValue } : req)
@@ -475,7 +841,6 @@ const Admin = () => {
       const response = await axios.delete(`/password-requests/${id}`);
       console.log("Suppression réussie:", response.data);
       
-
       setPasswordRequests(prev => prev.filter(req => req.id !== id));
   
       toast.success("Demande supprimée !");
@@ -484,14 +849,9 @@ const Admin = () => {
       toast.error("Erreur lors de la suppression de la demande");
     }
   };
-  
 
-  /* ----------------------------------------------
-     14) Rendu principal
-  ---------------------------------------------- */
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* HEADER PERSISTANT */}
       <header className="w-full bg-white shadow p-4 flex justify-center">
         <div className="flex flex-col items-center">
           <span className="text-2xl font-bold text-gray-700">Bonjour, Admin</span>
@@ -504,7 +864,6 @@ const Admin = () => {
       </header>
 
       <div className="flex flex-1">
-        {/* Barre latérale */}
         <div className="w-64 bg-gradient-to-b from-indigo-600 to-purple-600 p-6 flex flex-col shadow-lg">
           <nav className="flex-1 space-y-3 mt-6">
             <button
@@ -573,7 +932,6 @@ const Admin = () => {
           </button>
         </div>
 
-        {/* CONTENU PRINCIPAL */}
         <main className="flex-1 p-6 overflow-y-auto">
           <AnimatePresence exitBeforeEnter>
             {editingUser && (
@@ -637,28 +995,49 @@ const Admin = () => {
                   </div>
                   <div className="border-t pt-6">
                     <h3 className="text-lg font-semibold mb-4">Permissions</h3>
-                    {Object.entries(permissionOptions).map(([category, perms]) => (
-                      <div key={category} className="mb-5">
-                        <h4 className="font-medium text-gray-700">{category}</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
-                          {perms.map(perm => (
-                            <label key={perm.label} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
-                              <input
-                                type="checkbox"
-                                checked={editingUser.permissions[category]?.[perm.label] || false}
-                                onChange={(e) => {
-                                  const newPermissions = { ...editingUser.permissions };
-                                  newPermissions[category][perm.label] = e.target.checked;
-                                  setEditingUser({ ...editingUser, permissions: newPermissions });
-                                }}
-                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-                              />
-                              <span className="text-sm">{perm.icon} {perm.label}</span>
-                            </label>
-                          ))}
+                    {Object.entries(permissionOptions).map(([category, perms]) => {
+                      const categoryPermissions = editingUser.permissions[category];
+                      const allChecked = Object.values(categoryPermissions).every(v => v);
+                      
+                      return (
+                        <div key={category} className="mb-5">
+                          <div className="flex items-center space-x-2 mb-3">
+                            <input
+                              type="checkbox"
+                              checked={allChecked}
+                              onChange={(e) => {
+                                const newPermissions = { ...editingUser.permissions };
+                                newPermissions[category] = Object.keys(newPermissions[category])
+                                  .reduce((acc, label) => {
+                                    acc[label] = e.target.checked;
+                                    return acc;
+                                  }, {});
+                                setEditingUser({ ...editingUser, permissions: newPermissions });
+                              }}
+                              className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                            />
+                            <h4 className="font-medium text-gray-700">{category}</h4>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 ml-4">
+                            {perms.map(perm => (
+                              <label key={perm.label} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={editingUser.permissions[category]?.[perm.label] || false}
+                                  onChange={(e) => {
+                                    const newPermissions = { ...editingUser.permissions };
+                                    newPermissions[category][perm.label] = e.target.checked;
+                                    setEditingUser({ ...editingUser, permissions: newPermissions });
+                                  }}
+                                  className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                />
+                                <span className="text-sm">{perm.icon} {perm.label}</span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <div className="flex space-x-4">
                     <button
@@ -686,42 +1065,7 @@ const Admin = () => {
                 animate={{ opacity: 1 }}
                 className="space-y-8"
               >
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white p-6 rounded-xl shadow-lg border-t-4 border-indigo-500">
-                    <h3 className="text-lg font-semibold text-gray-600 mb-2">Utilisateurs Totaux</h3>
-                    <p className="text-4xl font-bold text-indigo-600">{stats.totalUsers}</p>
-                  </div>
-                  <div className="bg-white p-6 rounded-xl shadow-lg border-t-4 border-green-500">
-                    <h3 className="text-lg font-semibold text-gray-600 mb-2">Utilisateurs Actifs</h3>
-                    <p className="text-4xl font-bold text-green-600">{stats.activeUsers}</p>
-                  </div>
-                  <div className="bg-white p-6 rounded-xl shadow-lg border-t-4 border-purple-500">
-                    <h3 className="text-lg font-semibold text-gray-600 mb-2">Dernières Activités</h3>
-                    <p className="text-4xl font-bold text-purple-600">{stats.lastConnectedUsers.length}</p>
-                  </div>
-                </div>
-                <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
-                  <h3 className="text-2xl font-bold text-gray-800 mb-4">Dernières Connexions</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    {stats.lastConnectedUsers.map((user) => (
-                      <div key={user.id} className="flex items-center p-4 bg-gray-50 rounded-lg">
-                        <img
-                          src={user.profile_photo || '/default-avatar.png'}
-                          alt="Profile"
-                          className="w-16 h-16 rounded-full object-cover"
-                        />
-                        <div className="ml-4">
-                          <p className="font-semibold text-gray-800">{user.name}</p>
-                          <p className="text-sm text-gray-500">
-                            {user.last_login_at
-                              ? new Date(user.last_login_at).toLocaleString()
-                              : 'Jamais connecté'}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <DashboardStats users={users} passwordRequests={passwordRequests} />
               </motion.div>
             )}
 
@@ -902,31 +1246,52 @@ const Admin = () => {
                   </div>
                   <fieldset className="border p-4 rounded-lg">
                     <legend className="text-lg font-semibold text-gray-800 px-2">Permissions</legend>
-                    {Object.entries(permissionOptions).map(([category, perms]) => (
-                      <div key={category} className="mt-4">
-                        <h4 className="font-medium text-gray-700 mb-2">{category}</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 ml-4">
-                          {perms.map(perm => (
-                            <label
-                              key={perm.label}
-                              className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={newUser.permissions[category][perm.label]}
-                                onChange={(e) => {
-                                  const newPermissions = { ...newUser.permissions };
-                                  newPermissions[category][perm.label] = e.target.checked;
-                                  setNewUser({ ...newUser, permissions: newPermissions });
-                                }}
-                                className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-                              />
-                              <span>{perm.icon} {perm.label}</span>
-                            </label>
-                          ))}
+                    {Object.entries(permissionOptions).map(([category, perms]) => {
+                      const categoryPermissions = newUser.permissions[category];
+                      const allChecked = Object.values(categoryPermissions).every(v => v);
+                      
+                      return (
+                        <div key={category} className="mt-4">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <input
+                              type="checkbox"
+                              checked={allChecked}
+                              onChange={(e) => {
+                                const newPermissions = { ...newUser.permissions };
+                                newPermissions[category] = Object.keys(newPermissions[category])
+                                  .reduce((acc, label) => {
+                                    acc[label] = e.target.checked;
+                                    return acc;
+                                  }, {});
+                                setNewUser({ ...newUser, permissions: newPermissions });
+                              }}
+                              className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                            />
+                            <h4 className="font-medium text-gray-700">{category}</h4>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 ml-4">
+                            {perms.map(perm => (
+                              <label
+                                key={perm.label}
+                                className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={newUser.permissions[category][perm.label]}
+                                  onChange={(e) => {
+                                    const newPermissions = { ...newUser.permissions };
+                                    newPermissions[category][perm.label] = e.target.checked;
+                                    setNewUser({ ...newUser, permissions: newPermissions });
+                                  }}
+                                  className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                />
+                                <span>{perm.icon} {perm.label}</span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </fieldset>
                   <button
                     type="submit"
@@ -975,6 +1340,15 @@ const Admin = () => {
                         <div>
                           <p className="font-semibold text-gray-800">{user.name}</p>
                           <p className="text-sm text-gray-600">{user.email}</p>
+                          <div className="mt-1">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              user.role === 'admin' 
+                                ? 'bg-purple-100 text-purple-800' 
+                                : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {user.role}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <div className="flex space-x-3">
@@ -1009,57 +1383,50 @@ const Admin = () => {
                   <p className="text-gray-600">Aucune demande pour le moment.</p>
                 ) : (
                   <div className="space-y-4">
-                   {passwordRequests.map((req) => (
-  <div key={req.id} className="p-4 bg-gray-50 rounded-lg shadow-sm flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">
-    
-    {/* IMAGE DE PROFIL */}
-    <img
-      src={req.user_profile_photo || '/default-avatar.png'}
-      alt="Profile"
-      className="w-16 h-16 rounded-full object-cover"
-    />
-    
-    {/* INFORMATIONS UTILISATEUR */}
-    <div className="flex-1">
-      <p className="font-semibold text-gray-800">
-        {req.user_name} ({req.user_email})
-      </p>
-      <p className="text-sm text-gray-500">Rôle : {req.user_role}</p>
-      <p className="text-sm text-gray-500">Raison : {req.reason}</p>
-      <p className="text-xs text-gray-400">
-        Demande créée le : {new Date(req.created_at).toLocaleString()}
-      </p>
-    </div>
-
-    {/* GESTION DES ACTIONS */}
-    <div className="flex flex-col items-end space-y-2">
-      <label className="block text-sm font-medium text-gray-700">
-        Nouveau mot de passe
-      </label>
-      <input
-        type="password"
-        className="w-full md:w-64 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
-        value={req.newPassword || ''}
-        onChange={(e) => handleRequestPasswordChange(req.id, e.target.value)}
-      />
-      <div className="flex space-x-2">
-        <button
-          onClick={() => handleSetNewPassword(req.id)}
-          className="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-full hover:bg-indigo-700 transition transform duration-150"
-        >
-          Définir
-        </button>
-        <button
-          onClick={() => handleDeletePasswordRequest(req.id)}
-          className="mt-2 bg-red-600 text-white px-4 py-2 rounded-full hover:bg-red-700 transition transform duration-150"
-        >
-          Supprimer
-        </button>
-      </div>
-    </div>
-  </div>
-))}
-
+                    {passwordRequests.map((req) => (
+                      <div key={req.id} className="p-4 bg-gray-50 rounded-lg shadow-sm flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">
+                        <img
+                          src={req.user_profile_photo || '/default-avatar.png'}
+                          alt="Profile"
+                          className="w-16 h-16 rounded-full object-cover"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-800">
+                            {req.user_name} ({req.user_email})
+                          </p>
+                          <p className="text-sm text-gray-500">Rôle : {req.user_role}</p>
+                          <p className="text-sm text-gray-500">Raison : {req.reason}</p>
+                          <p className="text-xs text-gray-400">
+                            Demande créée le : {new Date(req.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end space-y-2">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Nouveau mot de passe
+                          </label>
+                          <input
+                            type="password"
+                            className="w-full md:w-64 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500"
+                            value={req.newPassword || ''}
+                            onChange={(e) => handleRequestPasswordChange(req.id, e.target.value)}
+                          />
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleSetNewPassword(req.id)}
+                              className="mt-2 bg-indigo-600 text-white px-4 py-2 rounded-full hover:bg-indigo-700 transition transform duration-150"
+                            >
+                              Définir
+                            </button>
+                            <button
+                              onClick={() => handleDeletePasswordRequest(req.id)}
+                              className="mt-2 bg-red-600 text-white px-4 py-2 rounded-full hover:bg-red-700 transition transform duration-150"
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </motion.div>

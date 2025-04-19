@@ -18,6 +18,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/permissions', [PermissionController::class, 'index']);
 
     Route::get('/profile', [UserController::class, 'getProfile']);
+    Route::get('/admin/stats', [AdminController::class, 'getStats']);
+    Route::get('/admin/activity-data', [AdminController::class, 'getActivityData']);
+    Route::get('/admin/permission-stats', [AdminController::class, 'getPermissionStats']);
+    
+    // Routes CRUD utilisateurs améliorées
+    Route::put('/users/{id}', [AdminController::class, 'updateUser']);
+    Route::delete('/users/{id}', [AdminController::class, 'deleteUser']);
+
+
+
 });
 
 

@@ -7,6 +7,10 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
+use App\Models\PasswordRequest;
+use Illuminate\Support\Facades\DB;
+
+
 
 class AdminController extends Controller
 {
@@ -114,6 +118,102 @@ class AdminController extends Controller
         $user->update(['status' => $request->status]);
         return response()->json($user);
     }
+    // Ajoutez ces nouvelles méthodes à votre AdminController
+
+public function getStats(Request $request)
+{
+    $startDate = $request->input('start_date');
+    $endDate = $request->input('end_date');
+
+    return response()->json([
+        'kpis' => [
+            'activeUsers' => User::where('last_login_at', '>=', now()->subDays(30))->count(),
+            'newUsers' => User::whereBetween('created_at', [$startDate, $endDate])->count(),
+           'passwordRequests' => PasswordRequest::whereBetween('created_at', [$startDate, $endDate])->count(),
+            'activationRate' => round((User::where('status', 'active')->count() / max(User::count(), 1)) * 100) . '%',
+            'adminCount' => User::where('role', 'admin')->count(),
+            'userCount' => User::where('role', 'user')->count(),
+        ],
+    ]);
+}
+
+public function getActivityData(Request $request)
+{
+    $startDate = $request->input('start_date');
+    $endDate = $request->input('end_date');
+
+    $activityData = User::selectRaw('DATE(last_login_at) as date, COUNT(*) as count')
+        ->whereBetween('last_login_at', [$startDate, $endDate])
+        ->groupBy('date')
+        ->orderBy('date')
+        ->get();
+
+    return response()->json($activityData);
+}
+
+public function getPermissionStats(Request $request)
+{
+    $startDate = $request->input('start_date');
+    $endDate = $request->input('end_date');
+
+    $results = DB::table('permission_user')
+        ->join('permissions', 'permission_user.permission_id', '=', 'permissions.id')
+        ->select('permissions.category', DB::raw('count(*) as count'))
+        ->groupBy('permissions.category')
+        ->get();
+
+    return response()->json($results);
+}
+
+public function updateUser(Request $request, $id)
+{
+    $user = User::findOrFail($id);
+
+    $data = $request->validate([
+        'name' => 'required|string',
+        'email' => 'required|email|unique:users,email,'.$user->id,
+        'role' => 'required|in:user,admin',
+        'password' => 'nullable|string|min:8',
+        'profile_photo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        'permissions' => 'nullable|array',
+    ]);
+
+    $user->name = $data['name'];
+    $user->email = $data['email'];
+    $user->role = $data['role'];
+
+    if ($request->hasFile('profile_photo')) {
+        if ($user->profile_photo) {
+            Storage::disk('public')->delete($user->profile_photo);
+        }
+        $user->profile_photo = $request->file('profile_photo')->store('profile_photos', 'public');
+    }
+
+    if (!empty($data['password'])) {
+        $user->password = bcrypt($data['password']);
+    }
+
+    if (!empty($data['permissions'])) {
+        $user->permissions = json_encode($data['permissions']);
+    }
+
+    $user->save();
+
+    return response()->json($user);
+}
+
+public function deleteUser($id)
+{
+    $user = User::findOrFail($id);
+    
+    if ($user->profile_photo) {
+        Storage::disk('public')->delete($user->profile_photo);
+    }
+    
+    $user->delete();
+    
+    return response()->json(['message' => 'User deleted successfully']);
+}
 
     
 }

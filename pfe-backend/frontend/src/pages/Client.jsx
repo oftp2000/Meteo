@@ -509,9 +509,7 @@ const SectorNavigation = () => {
           </div>
         </div>
 
-        <div className={`flex-1 bg-[#F5F5F5] transition-all duration-300 ${
-          isSidebarOpen ? "ml-64" : "ml-16"
-        }`}>
+        <div className={`flex-1 bg-[#F5F5F5] transition-all duration-300`}>
           <div className="h-full flex flex-col p-4">
             <div className="flex-1 space-y-4">
               {selectedLink ? (
